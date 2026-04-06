@@ -555,6 +555,12 @@ p {
   }
 }
 
+/* ── Refresh button spin ── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ── Markets live indicator pulse ── */
 @keyframes pulse {
   0% {
@@ -569,3 +575,26 @@ p {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
   }
 }
+
+/* ── slideUp for modals/coach panel ── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── pulse-ring for floating coach button ── */
+@keyframes pulse-ring {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* ── progress shimmer ── */
+@keyframes progress-shimmer {
+  0%   { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ── .anim-slide for expandable panels ── */
+.anim-slide {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
