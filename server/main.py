@@ -12,19 +12,50 @@ import time
 import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from dotenv import load_dotenv
 import google.generativeai as genai
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from auth import create_access_token, verify_password, get_password_hash, decode_access_token
+from models import Base, User, BudgetNode, Transaction, PortfolioItem, Loan
 
 load_dotenv()
+
+# ─── Database ──────────────────────────────────────────────────────────────────
+SQLALCHEMY_DATABASE_URL = "sqlite:///./finet.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user_id = payload.get("sub")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
 
 app = FastAPI(title="Finet API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "*"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -253,19 +284,18 @@ Rules:
 User profile context will be provided. Adapt your tone and depth accordingly."""
 
 @app.post("/api/chat")
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, current_user: User = Depends(get_current_user)):
     if not GEMINI_API_KEY:
-        # Fallback to rule-based if no key
         from coach_fallback import get_fallback_response
         return {"reply": get_fallback_response(req.message, req.profile)}
 
     try:
+        # Improved model naming and parameter handling
         model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
+            model_name="models/gemini-2.0-flash", 
             system_instruction=SYSTEM_PROMPT,
         )
 
-        # Build context from profile
         profile_ctx = ""
         if req.profile:
             tier  = req.profile.get("tier", "BEGINNER")
@@ -274,22 +304,165 @@ def chat(req: ChatRequest):
             age   = req.profile.get("answers", {}).get("age", "unknown")
             profile_ctx = f"\n[USER PROFILE: Age={age}, Capital=₹{cap}, Tier={tier}, Goal={goal}]\n"
 
-        # Build history
         history = []
-        for msg in req.history[-6:]:  # last 6 messages
+        for msg in req.history[-6:]:
             history.append({
                 "role": "user" if msg["role"] == "user" else "model",
                 "parts": [msg["content"]]
             })
 
-        chat_session = model.start_chat(history=history)
-        response = chat_session.send_message(profile_ctx + req.message)
-
-        return {"reply": response.text}
+        # Test if model is responsive
+        try:
+            chat_session = model.start_chat(history=history)
+            response = chat_session.send_message(profile_ctx + req.message)
+            return {"reply": response.text}
+        except Exception as api_err:
+            print(f"[Gemini API Call] error: {api_err}")
+            # Fallback if specific model fails
+            return {"reply": "I'm having trouble connecting to my brain right now. Please try again or check your API key."}
 
     except Exception as e:
-        print(f"[Gemini] error: {e}")
+        print(f"[Gemini Structure] error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── AUTH ENDPOINTS ─────────────────────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    phone: str
+    password: str
+    full_name: str = ""
+
+class LoginRequest(BaseModel):
+    phone: str
+    password: str
+
+@app.post("/api/auth/register")
+def register(req: RegisterRequest, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.phone == req.phone).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Phone number already registered")
+    
+    hashed_pass = get_password_hash(req.password)
+    new_user = User(phone=req.phone, hashed_password=hashed_pass, full_name=req.full_name)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    access_token = create_access_token(data={"sub": str(new_user.id)})
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {"id": new_user.id, "phone": new_user.phone, "full_name": new_user.full_name}
+    }
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.phone == req.phone).first()
+    if not user or not verify_password(req.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid phone or password")
+    
+    access_token = create_access_token(data={"sub": str(user.id)})
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {"id": user.id, "phone": user.phone, "full_name": user.full_name}
+    }
+
+@app.get("/api/auth/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id, 
+        "phone": current_user.phone, 
+        "full_name": current_user.full_name,
+        "email": current_user.email
+    }
+
+
+# ─── DATA ENDPOINTS ─────────────────────────────────────────────────────────────
+
+@app.get("/api/user/data")
+def get_user_data(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    nodes = db.query(BudgetNode).filter(BudgetNode.user_id == current_user.id).all()
+    txs = db.query(Transaction).filter(Transaction.user_id == current_user.id).all()
+    portfolio = db.query(PortfolioItem).filter(PortfolioItem.user_id == current_user.id).all()
+    
+    return {
+        "nodes": nodes,
+        "transactions": txs,
+        "portfolio": portfolio
+    }
+
+@app.post("/api/user/transaction")
+def add_transaction(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    amount = float(req.get("amount", 0))
+    category = req.get("category")
+    
+    new_tx = Transaction(
+        user_id=current_user.id,
+        title=req.get("title"),
+        amount=amount,
+        category=category,
+        date=datetime.utcnow(),
+        note=req.get("note")
+    )
+    db.add(new_tx)
+    
+    # Update node spent
+    node = db.query(BudgetNode).filter(BudgetNode.user_id == current_user.id, BudgetNode.name == category).first()
+    if node:
+        node.spent += amount
+    
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/user/portfolio")
+def add_portfolio_item(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    new_item = PortfolioItem(
+        user_id=current_user.id,
+        name=req.get("name"),
+        type=req.get("type"),
+        invested=float(req.get("invested", 0)),
+        current_value=float(req.get("current_value", 0)),
+        roi=0.0,
+        color=req.get("color", "#6366f1")
+    )
+    # Calculate initial ROI
+    if new_item.invested > 0:
+        new_item.roi = ((new_item.current_value - new_item.invested) / new_item.invested) * 100
+        
+    db.add(new_item)
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/user/loans")
+def add_loan(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    new_loan = Loan(
+        user_id=current_user.id,
+        name=req.get("name"),
+        bank=req.get("bank"),
+        principal=float(req.get("principal", 0)),
+        remaining=float(req.get("remaining", 0)),
+        interest_rate=float(req.get("interest_rate", 0)),
+        tenure_months=int(req.get("tenure_months", 0)),
+        emi=float(req.get("emi", 0))
+    )
+    db.add(new_loan)
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/user/nodes")
+def add_budget_node(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    new_node = BudgetNode(
+        user_id=current_user.id,
+        name=req.get("name"),
+        percent=float(req.get("percent", 0)),
+        color=req.get("color", "#6366f1"),
+        spent=0.0
+    )
+    db.add(new_node)
+    db.commit()
+    return {"status": "ok"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

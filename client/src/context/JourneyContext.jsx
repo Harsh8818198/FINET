@@ -118,7 +118,7 @@ export function JourneyProvider({ children }) {
   }, [])
 
   const xpToNextLevel = 100
-  const xpInLevel = journey.xp % xpToNextLevel
+  const xpInLevel = (journey?.xp || 0) % xpToNextLevel
   const levelProgress = Math.round((xpInLevel / xpToNextLevel) * 100)
 
   const value = {

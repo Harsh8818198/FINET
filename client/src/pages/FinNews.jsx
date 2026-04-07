@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Newspaper, RefreshCw, ExternalLink, TrendingUp, AlertCircle } from 'lucide-react'
 import { FeatureInfoBadge } from '../components/FeatureTips'
 
-const API_BASE = 'http://localhost:8000'
+import api from '../utils/api'
 
 const CATEGORIES = ['All', 'Stocks', 'Mutual Funds', 'RBI Policy', 'Tax', 'Economy', 'Real Estate', 'Crypto', 'Insurance', 'Global Markets', 'Markets']
 const COMPLEXITY = ['All', 'Beginner', 'Intermediate', 'Advanced']
@@ -103,10 +103,8 @@ export default function FinNews() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE}/api/news`)
-      if (!res.ok) throw new Error(`Server error: ${res.status}`)
-      const data = await res.json()
-      setArticles(data.articles || [])
+      const res = await api.get('/news')
+      setArticles(res.data.articles || [])
       setLastFetch(new Date())
     } catch (e) {
       setError(e.message)

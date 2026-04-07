@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useJourney } from '../../context/JourneyContext'
 import { Sparkles, X, Send, ChevronRight } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000'
+import api from '../../utils/api'
 
 // ── Page-aware context tips ─────────────────────────────────────────────────
 const PAGE_TIPS = {
@@ -48,7 +48,9 @@ export default function FloatingCoach() {
 
   // Check if API is up
   useEffect(() => {
-    fetch(`${API_BASE}/health`).then(r => r.ok && setApiOnline(true)).catch(() => setApiOnline(false))
+    api.get('/health')
+      .then(r => r.status === 200 && setApiOnline(true))
+      .catch(() => setApiOnline(false))
   }, [])
 
   // Auto-greet when coach opens
@@ -77,17 +79,12 @@ export default function FloatingCoach() {
 
     try {
       if (apiOnline) {
-        const res = await fetch(`${API_BASE}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: text,
-            profile: journey.profile || {},
-            history: msgs.slice(-6),
-          }),
+        const res = await api.post('/chat', {
+          message: text,
+          profile: journey.profile || {},
+          history: msgs.slice(-6),
         })
-        const data = await res.json()
-        setMsgs(m => [...m, { role: 'coach', content: data.reply }])
+        setMsgs(m => [...m, { role: 'coach', content: res.data.reply }])
       } else {
         // Offline fallback
         const lower = text.toLowerCase()

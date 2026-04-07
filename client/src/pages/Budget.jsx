@@ -7,7 +7,7 @@ export default function Budget() {
     const { income, nodes, transactions } = useContext(AppContext)
     const navigate = useNavigate()
 
-    const totalAlloc = nodes.reduce((s, n) => s + n.percent, 0)
+    const totalAlloc = (nodes || []).reduce((s, n) => s + (n.percent || 0), 0)
 
     return (
         <div className="anim-fade">

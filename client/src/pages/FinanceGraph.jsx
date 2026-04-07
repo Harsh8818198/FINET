@@ -6,7 +6,7 @@ import NodeModal from '../components/budget/NodeModal'
 import { Network, Plus, Zap, AlertTriangle, Info, Activity } from 'lucide-react'
 
 export default function FinanceGraph() {
-    const { nodes, income, transactions, addNode, normalizePercents, setNodes } = useContext(AppContext)
+    const { nodes, income, transactions, addNode, normalizePercents, setNodes, bulkUpdateNodes } = useContext(AppContext)
     const [selectedNode, setSelectedNode] = useState(null)
     const [showModal, setShowModal] = useState(false)
     const [editNode, setEditNode] = useState(null)

@@ -8,8 +8,9 @@ import { ACHIEVEMENTS } from '../data/appData'
 import {
   TrendingUp, TrendingDown, Wallet, ArrowUpRight,
   Activity, Sparkles, Target, Flame, ChevronRight,
-  CircleCheck, BookOpen, BarChart2, Network, Users
+  CheckCircle2, BookOpen, BarChart2, Network, Users
 } from 'lucide-react'
+import FeatureTooltip from '../components/FeatureTooltip'
 
 // ── Health gauge ─────────────────────────────────────────────────────────────
 function HealthGauge({ score }) {
@@ -92,21 +93,23 @@ export default function Dashboard() {
   const market = useMarketData()
   const navigate = useNavigate()
 
-  const totalSpent  = transactions.reduce((s, t) => s + t.amount, 0)
-  const totalSaved  = Math.max(0, income - totalSpent)
-  const savingsRate = income > 0 ? Math.round((totalSaved / income) * 100) : 0
+  const totalSpent  = (transactions || []).reduce((s, t) => s + (t.amount || 0), 0)
+  const totalSaved  = Math.max(0, (income || 0) - totalSpent)
+  const savingsRate = (income || 0) > 0 ? Math.round((totalSaved / income) * 100) : 0
 
   const healthScore = useMemo(() => {
     let score = 0
-    const totalAlloc = nodes.reduce((s, n) => s + n.percent, 0)
+    const nodeArr = nodes || []
+    const txArr = transactions || []
+    const totalAlloc = nodeArr.reduce((s, n) => s + (n.percent || 0), 0)
     if (totalAlloc >= 95 && totalAlloc <= 105) score += 20
-    const overNodes = nodes.filter(n => (income * n.percent / 100) < transactions.filter(t => t.category === n.id).reduce((s, t) => s + t.amount, 0))
+    const overNodes = nodeArr.filter(n => ((income || 0) * (n.percent || 0) / 100) < txArr.filter(t => t.category === n.id).reduce((s, t) => s + (t.amount || 0), 0))
     score += Math.max(0, 20 - overNodes.length * 7)
     if (savingsRate >= 30) score += 35
     else if (savingsRate >= 20) score += 25
     else if (savingsRate >= 10) score += 15
-    score += nodes.some(n => /invest|sip|mutual|stock/i.test(n.name)) ? 15 : 0
-    score += transactions.length >= 5 ? 10 : (transactions.length > 0 ? 5 : 0)
+    score += nodeArr.some(n => /invest|sip|mutual|stock/i.test(n.name)) ? 15 : 0
+    score += txArr.length >= 5 ? 10 : (txArr.length > 0 ? 5 : 0)
     return Math.min(100, score)
   }, [nodes, transactions, income, savingsRate])
 
@@ -129,16 +132,18 @@ export default function Dashboard() {
       {/* Top KPIs */}
       <div className="bento-grid" style={{ marginBottom: 32 }}>
         {[
-          { label: 'Capital Input',  value: `₹${income.toLocaleString()}`,      sub: 'Baseline influx',                      subColor: 'var(--text-muted)' },
-          { label: 'System Outflow', value: `₹${totalSpent.toLocaleString()}`,  sub: `${Math.round((totalSpent/income)*100)||0}% utilization`, subColor: 'var(--red)' },
-          { label: 'Net Retention',  value: `₹${totalSaved.toLocaleString()}`,  sub: `${savingsRate}% efficiency`,            subColor: 'var(--green)' },
-          { label: 'Active Nodes',   value: nodes.length,                        sub: 'Allocation hubs',                      subColor: 'var(--text-muted)' },
+          { key: 'capital', label: 'Capital Input',  value: `₹${(income || 0).toLocaleString()}`,      sub: 'Baseline influx',                      subColor: 'var(--text-muted)', desc: 'Total monthly earnings before any deductions or allocations.' },
+          { key: 'outflow', label: 'System Outflow', value: `₹${(totalSpent || 0).toLocaleString()}`,  sub: `${Math.round((totalSpent / (income || 1)) * 100) || 0}% utilization`, subColor: 'var(--red)', desc: 'Total tracked expenses including needs and wants.' },
+          { key: 'retention', label: 'Net Retention',  value: `₹${(totalSaved || 0).toLocaleString()}`,  sub: `${savingsRate}% efficiency`,            subColor: 'var(--green)', desc: 'Amount remaining after expenses, available for investment or emergency fund.' },
+          { key: 'nodes', label: 'Active Nodes',   value: (nodes || []).length,                        sub: 'Allocation hubs',                      subColor: 'var(--text-muted)', desc: 'Number of interactive budget categories managing your cash flow.' },
         ].map(k => (
-          <div key={k.label} className="bento-card bento-3 stat-card">
-            <div className="stat-label">{k.label}</div>
-            <div className="stat-value" style={{ fontFamily: 'var(--font-mono)' }}>{k.value}</div>
-            <div style={{ fontSize: '0.8rem', color: k.subColor, marginTop: 8 }}>{k.sub}</div>
-          </div>
+          <FeatureTooltip key={k.key} featureKey={k.key} title={k.label} description={k.desc}>
+            <div className="bento-card bento-3 stat-card" style={{ height: '100%' }}>
+              <div className="stat-label">{k.label}</div>
+              <div className="stat-value" style={{ fontFamily: 'var(--font-mono)' }}>{k.value}</div>
+              <div style={{ fontSize: '0.8rem', color: k.subColor, marginTop: 8 }}>{k.sub}</div>
+            </div>
+          </FeatureTooltip>
         ))}
       </div>
 
@@ -220,7 +225,13 @@ export default function Dashboard() {
 
           {/* Health gauge */}
           <div className="card" style={{ background: 'var(--bg-deep)', textAlign: 'center' }}>
-            <div className="stat-label" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>Stability Index <FeatureInfoBadge tipKey="stability-index" /></div>
+            <FeatureTooltip 
+               featureKey="stability-index" 
+               title="Stability Index" 
+               description="A composite score (0-100) reflecting your current financial discipline, emergency readiness, and investment consistency."
+            >
+              <div className="stat-label" style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'help' }}>Stability Index <Sparkles size={12} color="var(--accent-indigo)" /></div>
+            </FeatureTooltip>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
               <HealthGauge score={healthScore} />
             </div>
@@ -239,23 +250,29 @@ export default function Dashboard() {
           {/* Market pulse */}
           <div className="card" style={{ background: 'var(--bg-deep)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div className="stat-label">Market Pulse</div>
+              <FeatureTooltip 
+                featureKey="market-pulse" 
+                title="Market Pulse" 
+                description="Live tracking of major Indian indices (Sensex, Nifty 50) and top individual assets to keep you aware of broader market sentiment."
+              >
+                <div className="stat-label" style={{ cursor: 'help' }}>Market Pulse</div>
+              </FeatureTooltip>
               <button onClick={() => navigate('/markets')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 4 }}>
                 Full View <ChevronRight size={12} />
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { name: 'SENSEX', ...market.sensex },
-                { name: 'NIFTY 50', ...market.nifty },
-                ...market.stocks.slice(0, 3).map(s => ({ name: s.symbol, value: s.price, percent: s.percent }))
+                { name: 'SENSEX', ...(market?.sensex || {}) },
+                { name: 'NIFTY 50', ...(market?.nifty || {}) },
+                ...(market?.stocks || []).slice(0, 3).map(s => ({ name: s.symbol, value: s.price, percent: s.percent }))
               ].map(item => (
                 <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <span style={{ fontSize: '0.82rem', fontWeight: 600, letterSpacing: '-0.01em' }}>{item.name}</span>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{(item.value||0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
-                    <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: (item.percent||0) >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
-                      {(item.percent||0) >= 0 ? '+' : ''}{(item.percent||0).toFixed(2)}%
+                    <div style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{(item.value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: (item.percent || 0) >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+                      {(item.percent || 0) >= 0 ? '+' : ''}{(item.percent || 0).toFixed(2)}%
                     </div>
                   </div>
                 </div>

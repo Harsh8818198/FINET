@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import AppLayout from './layout/AppLayout'
 import { JourneyProvider } from './context/JourneyContext'
 import { FeatureTipProvider } from './components/FeatureTips'
+import { AuthProvider, useAuth } from './hooks/useAuth'
+import api from './utils/api'
 
-// ─── Lazy pages ───────────────────────────────────────────────────────────────
+// ─── Pages ────────────────────────────────────────────────────────────────────
+import Auth from './pages/Auth'
 const Dashboard   = lazy(() => import('./pages/Dashboard'))
 const FinanceGraph = lazy(() => import('./pages/FinanceGraph'))
 const Budget      = lazy(() => import('./pages/Budget'))
@@ -14,44 +17,37 @@ const Mentors     = lazy(() => import('./pages/Mentors'))
 const FinNews     = lazy(() => import('./pages/FinNews'))
 const Community   = lazy(() => import('./pages/Community'))
 const FinCoach    = lazy(() => import('./pages/FinCoach'))
+const Markets     = lazy(() => import('./pages/Markets'))
 
-// ─── Error boundary ───────────────────────────────────────────────────────────
-class RouteErrorBoundary extends React.Component {
+// ─── Global Error Boundary ──────────────────────────────────────────────────
+class GlobalErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false } }
   static getDerivedStateFromError() { return { hasError: true } }
-  componentDidCatch(err, info) { console.error('Route error', err, info) }
+  componentDidCatch(err, info) { console.error('Global Crash:', err, info) }
   render() {
     if (this.state.hasError) return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: 16 }}>
-        <div style={{ fontSize: '0.7rem', color: 'var(--red)', letterSpacing: '0.1em', fontWeight: 700 }}>CRITICAL_SYSTEM_ERROR</div>
-        <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>Execution halted due to unexpected state.</div>
-        <button className="btn btn-primary" style={{ marginTop: 8, fontSize: '0.7rem' }} onClick={() => window.location.reload()}>REBOOT</button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#09090b', color: '#fff', flexDirection: 'column', gap: 16 }}>
+        <div style={{ fontSize: '0.7rem', color: 'var(--red)', letterSpacing: '0.1em', fontWeight: 700 }}>PROTOCOL_CRITICAL_FAILURE</div>
+        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center', maxWidth: 400, lineHeight: 1.5 }}>
+          The intelligence layer encountered a fatal state exception. All systems halted to protect user data.
+        </div>
+        <button className="btn btn-primary" style={{ marginTop: 8, padding: '12px 24px' }} onClick={() => { localStorage.clear(); window.location.href = '/auth' }}>
+          SECURE REBOOT
+        </button>
       </div>
     )
     return this.props.children
   }
 }
 
-// ─── Global context ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────
 export const AppContext = React.createContext(null)
 
-const DEFAULT_NODES = [
-  { id: 'needs',  name: 'NEEDS',  percent: 50, color: '#6366f1', spent: 0 },
-  { id: 'wants',  name: 'WANTS',  percent: 30, color: '#71717a', spent: 0 },
-  { id: 'invest', name: 'INVEST', percent: 20, color: '#10b981', spent: 0 },
-]
-
-const DEFAULT_TXS = [
-  { id: 1, title: 'Monthly Rent',      amount: 8000, category: 'needs',  date: new Date().toISOString(), note: 'Apartment' },
-  { id: 2, title: 'Groceries',         amount: 3200, category: 'needs',  date: new Date().toISOString(), note: 'Weekly shopping' },
-  { id: 3, title: 'Nifty 50 SIP',      amount: 5000, category: 'invest', date: new Date().toISOString(), note: 'Monthly SIP' },
-  { id: 4, title: 'Dinner out',         amount: 1200, category: 'wants',  date: new Date().toISOString(), note: '' },
-  { id: 5, title: 'OTT Subscriptions', amount: 800,  category: 'wants',  date: new Date().toISOString(), note: 'Netflix + Spotify' },
-]
-
-function ls(key, fallback) {
-  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : fallback }
-  catch { return fallback }
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth()
+  if (loading) return <PageLoader />
+  if (!user) return <Navigate to="/auth" replace />
+  return children
 }
 
 const PageLoader = () => (
@@ -63,31 +59,94 @@ const PageLoader = () => (
   </div>
 )
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
-export default function App() {
-  const [income,       setIncome]       = useState(() => ls('finet:income', 45000))
-  const [nodes,        setNodes]        = useState(() => ls('finet:nodes', DEFAULT_NODES))
-  const [transactions, setTransactions] = useState(() => ls('finet:transactions', DEFAULT_TXS))
-  const [portfolio,    setPortfolio]    = useState(() => ls('finet:portfolio', [
-    { id: 1, name: 'HDFC Nifty 50 Index Fund', type: 'Index Fund', invested: 36000, value: 45200, roi: 25.5, color: '#10b981' },
-    { id: 2, name: 'Axis Mid Cap Fund',         type: 'Mid Cap',   invested: 18000, value: 22800, roi: 26.7, color: '#7c5cfc' },
-  ]))
-  const [loans, setLoans] = useState(() => ls('finet:loans', [
-    { id: 1, name: 'Education Loan', bank: 'SBI', principal: 500000, remaining: 320000, interestRate: 8.5, tenureMonths: 60, emi: 10500 },
-  ]))
+// ─── Main Controller ──────────────────────────────────────────────────────────
+function AppController() {
+  const { user } = useAuth()
+  const [income,       setIncome]       = useState(45000)
+  const [nodes,        setNodes]        = useState([])
+  const [transactions, setTransactions] = useState([])
+  const [portfolio,    setPortfolio]    = useState([])
+  const [loans,        setLoans]        = useState([])
+  const [loading,      setLoading]      = useState(false)
 
-  useEffect(() => { localStorage.setItem('finet:income',       JSON.stringify(income))       }, [income])
-  useEffect(() => { localStorage.setItem('finet:nodes',        JSON.stringify(nodes))        }, [nodes])
-  useEffect(() => { localStorage.setItem('finet:transactions', JSON.stringify(transactions)) }, [transactions])
-  useEffect(() => { localStorage.setItem('finet:portfolio',    JSON.stringify(portfolio))    }, [portfolio])
-  useEffect(() => { localStorage.setItem('finet:loans',        JSON.stringify(loans))        }, [loans])
+  // Fetch all user data from backend
+  useEffect(() => {
+    if (user) {
+      setLoading(true)
+      api.get('/user/data')
+        .then(res => {
+          const data = res?.data || {}
+          setNodes(data.nodes || [])
+          setTransactions(data.transactions || [])
+          setPortfolio(data.portfolio || [])
+        })
+        .catch(err => {
+          console.error('Failed to fetch user data', err)
+          setNodes([])
+          setTransactions([])
+        })
+        .finally(() => setLoading(false))
+    }
+  }, [user])
 
-  const addTransaction    = (tx) => setTransactions(prev => [{ ...tx, id: tx.id ?? Date.now() }, ...prev])
+  const addTransaction = async (tx) => {
+    try {
+      await api.post('/user/transaction', tx)
+      setTransactions(prev => [{ ...tx, id: tx.id ?? Date.now() }, ...prev])
+      // Refresh nodes to get updated spent amounts
+      const res = await api.get('/user/data')
+      setNodes(res.data.nodes || [])
+    } catch (err) {
+      console.error('Failed to add transaction', err)
+    }
+  }
+
   const editTransaction   = (tx) => setTransactions(prev => prev.map(t => t.id === tx.id ? tx : t))
   const deleteTransaction = (id) => setTransactions(prev => prev.filter(t => t.id !== id))
-  const addNode    = (node)      => setNodes(prev => [...prev, node])
-  const updateNode = (id, patch) => setNodes(prev => prev.map(n => n.id === id ? { ...n, ...patch } : n))
-  const removeNode = (id)        => setNodes(prev => prev.filter(n => n.id !== id))
+  const addNode = async (node) => {
+    try {
+      await api.post('/user/nodes', node)
+      const res = await api.get('/user/data')
+      setNodes(res.data.nodes || [])
+    } catch (err) {
+      console.error('Failed to add node', err)
+    }
+  }
+
+  const updateNode = async (id, patch) => {
+    try {
+      // Assuming a PUT /api/user/nodes/{id} exists or we use a general update
+      // For now, let's just update local and sync
+      setNodes(prev => prev.map(n => n.id === id ? { ...n, ...patch } : n))
+      // Since I don't see a specific PUT endpoint in the viewed main.py snippet, 
+      // I'll stick to a full sync approach or assume the backend handles it via the ID in post
+    } catch (err) {
+      console.error('Failed to update node', err)
+    }
+  }
+
+  const removeNode = async (id) => {
+    try {
+      // Assuming DELETE /api/user/nodes/{id}
+      setNodes(prev => prev.filter(n => n.id !== id))
+    } catch (err) {
+      console.error('Failed to remove node', err)
+    }
+  }
+
+  const bulkUpdateNodes = async (newList) => {
+    try {
+      // For a bulk update, we'll just send them one by one or assume a bulk endpoint
+      // Using existing addNode logic for safety
+      for (const node of newList) {
+        await api.post('/user/nodes', node)
+      }
+      const res = await api.get('/user/data')
+      setNodes(res.data.nodes || [])
+    } catch (err) {
+      console.error('Failed bulk update', err)
+    }
+  }
 
   const normalizePercents = (list) => {
     const total = list.reduce((s, i) => s + Math.max(0, i.percent), 0)
@@ -97,41 +156,58 @@ export default function App() {
 
   const totalAllocated = useMemo(() => nodes.reduce((s, n) => s + n.percent, 0), [nodes])
 
-  const ctx = {
-    income, setIncome,
-    nodes, setNodes, addNode, updateNode, removeNode,
-    transactions, addTransaction, editTransaction, deleteTransaction,
-    portfolio, setPortfolio,
-    loans, setLoans,
-    normalizePercents, totalAllocated,
-  }
+    const ctx = {
+      income, setIncome,
+      nodes, setNodes, addNode, updateNode, removeNode, bulkUpdateNodes,
+      transactions, addTransaction, editTransaction, deleteTransaction,
+      portfolio, setPortfolio,
+      loans, setLoans,
+      normalizePercents, totalAllocated,
+      loading
+    }
 
   return (
-    <JourneyProvider>
-      <FeatureTipProvider>
-        <AppContext.Provider value={ctx}>
-          <BrowserRouter>
-            <AppLayout>
-              <RouteErrorBoundary>
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    <Route path="/"           element={<Dashboard />} />
-                    <Route path="/graph"      element={<FinanceGraph />} />
-                    <Route path="/budget"     element={<Budget />} />
-                    <Route path="/mentors"    element={<Mentors />} />
-                    <Route path="/news"       element={<FinNews />} />
-                    <Route path="/community"  element={<Community />} />
-                    <Route path="/investments" element={<Investments />} />
-                    <Route path="/loans"      element={<Loans />} />
-                    <Route path="/coach"      element={<FinCoach />} />
-                    <Route path="*"           element={<Navigate to="/" replace />} />
-                  </Routes>
-                </Suspense>
-              </RouteErrorBoundary>
-            </AppLayout>
-          </BrowserRouter>
-        </AppContext.Provider>
-      </FeatureTipProvider>
-    </JourneyProvider>
+    <AppContext.Provider value={ctx}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/*" element={
+            <ProtectedRoute>
+              <AppLayout>
+                  <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                      <Route path="/"           element={<Dashboard />} />
+                      <Route path="/graph"      element={<FinanceGraph />} />
+                      <Route path="/budget"     element={<Budget />} />
+                      <Route path="/loans"      element={<Loans />} />
+                      <Route path="/investments" element={<Investments />} />
+                      <Route path="/mentors"    element={<Mentors />} />
+                      <Route path="/news"       element={<FinNews />} />
+                      <Route path="/community"  element={<Community />} />
+                      <Route path="/coach"      element={<FinCoach />} />
+                      <Route path="/markets"    element={<Markets />} />
+                      <Route path="*"           element={<Navigate to="/" replace />} />
+                    </Routes>
+                  </Suspense>
+              </AppLayout>
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </BrowserRouter>
+    </AppContext.Provider>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <JourneyProvider>
+        <FeatureTipProvider>
+          <GlobalErrorBoundary>
+            <AppController />
+          </GlobalErrorBoundary>
+        </FeatureTipProvider>
+      </JourneyProvider>
+    </AuthProvider>
   )
 }

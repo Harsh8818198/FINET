@@ -20,19 +20,19 @@ export default function Topbar() {
     <header className="topbar">
       {/* 1. Market Integrated Pulse */}
       <div style={{ display: 'flex', gap: 32, overflow: 'hidden', flex: 1 }}>
-        {[market.sensex, market.nifty].map((item, i) => (
-          <div key={item.name} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: '0.8rem' }}>
-            <span style={{ color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>{item.name}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'var(--text-primary)' }}>{item.value.toLocaleString()}</span>
+        {[(market?.sensex || {}), (market?.nifty || {})].map((item, i) => (
+          <div key={item.name || i} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: '0.8rem' }}>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>{item.name || '---'}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'var(--text-primary)' }}>{(item.value || 0).toLocaleString()}</span>
             <span style={{
-              color: item.percent >= 0 ? 'var(--green)' : 'var(--red)',
+              color: (item.percent || 0) >= 0 ? 'var(--green)' : 'var(--red)',
               fontWeight: 600,
               fontFamily: 'var(--font-mono)',
               fontSize: '0.75rem',
-              background: item.percent >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)',
+              background: (item.percent || 0) >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)',
               padding: '2px 6px', borderRadius: 4
             }}>
-              {item.percent >= 0 ? '+' : ''}{item.percent.toFixed(2)}%
+              {(item.percent || 0) >= 0 ? '+' : ''}{(item.percent || 0).toFixed(2)}%
             </span>
           </div>
         ))}

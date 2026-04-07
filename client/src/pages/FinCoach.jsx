@@ -4,7 +4,7 @@ import { useJourney } from '../context/JourneyContext'
 import { FeatureInfoBadge } from '../components/FeatureTips'
 import { Sparkles, ArrowRight, CheckCircle2, Circle, Send, ChevronDown, RotateCcw, User } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000'
+import api from '../utils/api'
 
 const QUIZ = [
   { id: 'age',        question: "First — how old are you?",                   subtext: "We tailor everything to your stage of life.",                        type: 'number', placeholder: 'e.g. 19',    unit: 'years old' },
@@ -80,7 +80,7 @@ export default function FinCoach() {
   const { setProfile: saveToJourney, completeRoadmapStep, resetJourney, journey } = useJourney()
 
   useEffect(() => {
-    fetch(`${API_BASE}/health`).then(r => r.ok && setApiOnline(true)).catch(() => {})
+    api.get('/health').then(r => r.status === 200 && setApiOnline(true)).catch(() => {})
   }, [])
 
   // Restore saved profile
@@ -128,13 +128,12 @@ export default function FinCoach() {
     setTyping(true)
     try {
       if (apiOnline) {
-        const res = await fetch(`${API_BASE}/api/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, profile: profile || {}, history: msgs.slice(-8) }),
+        const res = await api.post('/chat', {
+          message: text, 
+          profile: profile || {}, 
+          history: msgs.slice(-8) 
         })
-        const data = await res.json()
-        setMsgs(m => [...m, { role: 'coach', content: data.reply }])
+        setMsgs(m => [...m, { role: 'coach', content: res.data.reply }])
       } else {
         const { getCoachResponse } = await import('../utils/coachEngine')
         setMsgs(m => [...m, { role: 'coach', content: getCoachResponse(text, profile) }])

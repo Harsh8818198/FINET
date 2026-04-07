@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react'
 import { AppContext } from '../App'
 import { TrendingUp, Plus, Activity, Briefcase, Zap } from 'lucide-react'
+import api from '../utils/api'
 
 export default function Investments() {
     const { portfolio, setPortfolio, income } = useContext(AppContext)
@@ -11,16 +12,26 @@ export default function Investments() {
     const totalValue = portfolio.reduce((s, p) => s + p.value, 0)
     const totalROI = totalInvested > 0 ? ((totalValue - totalInvested) / totalInvested) * 100 : 0
 
-    const addPortfolio = () => {
+    const addPortfolio = async () => {
         if (!form.name || !form.invested || !form.value) return
         const inv = Number(form.invested), val = Number(form.value)
-        setPortfolio(prev => [...prev, {
-            id: Date.now(), name: form.name, type: form.type,
-            invested: inv, value: val, roi: ((val - inv) / inv) * 100,
-            color: ['#8b5cf6', '#10b981', '#22d3ee', '#f59e0b', '#f43f5e'][Math.floor(Math.random() * 5)]
-        }])
-        setForm({ name: '', type: 'Index Fund', invested: '', value: '' })
-        setShowAdd(false)
+        
+        try {
+            await api.post('/user/portfolio', {
+                name: form.name,
+                type: form.type,
+                invested: inv,
+                current_value: val,
+                color: ['#8b5cf6', '#10b981', '#22d3ee', '#f59e0b', '#f43f5e'][Math.floor(Math.random() * 5)]
+            })
+            // Refresh data
+            const res = await api.get('/user/data')
+            setPortfolio(res.data.portfolio || [])
+            setForm({ name: '', type: 'Index Fund', invested: '', value: '' })
+            setShowAdd(false)
+        } catch (err) {
+            console.error('Failed to add portfolio item', err)
+        }
     }
 
     return (
