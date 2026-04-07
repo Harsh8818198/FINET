@@ -1,15 +1,27 @@
 import os
 import sys
 
-# Ensure the project root is in the Python path for Vercel
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.append(ROOT_DIR)
+# 1. Calculate paths
+# api/index.py -> api/ -> project_root/
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SERVER_DIR = os.path.join(BASE_DIR, "server")
 
-# Bridge to the FastAPI app
+# 2. Add both root and server to sys.path
+# This ensures that 'import server.main' works AND 'import intelligence_engine' (inside main) works
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+if SERVER_DIR not in sys.path:
+    sys.path.append(SERVER_DIR)
+
+# 3. Explicitly import and expose the FastAPI app
 try:
     from server.main import app
-except ImportError:
-    # Fallback for different Vercel structure variants
-    sys.path.append(os.path.join(ROOT_DIR, "server"))
-    from main import app
+except ImportError as e:
+    # If the above fails, try importing directly if we are already in the server context
+    try:
+        from main import app
+    except ImportError:
+        raise e
+
+# Vercel looks for 'app' at the top level of this file
+# We've imported it above, so it is now available as api.index.app
