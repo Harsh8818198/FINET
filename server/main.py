@@ -12,6 +12,7 @@ import time
 import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+from intelligence_engine import analyze_news_for_user, get_suggested_resources
 import google.generativeai as genai
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, Request
@@ -270,7 +271,7 @@ FALLBACK_NEWS = [
 ]
 
 @app.get("/api/news")
-def get_news():
+def get_news(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     def _fetch_all():
         results = []
 
@@ -297,7 +298,18 @@ def get_news():
         return unique if unique else FALLBACK_NEWS
 
     articles = cached("news", 600, _fetch_all)  # cache 10 min
+    
+    # AI Annotation Layer
+    if current_user:
+        profile = current_user.profile_json or {}
+        articles = analyze_news_for_user(articles, profile)
+
     return {"articles": articles, "count": len(articles), "cached": True}
+
+@app.get("/api/roadmap/resources")
+def get_roadmap_resources(current_user: User = Depends(get_current_user)):
+    profile = current_user.profile_json or {}
+    return {"resources": get_suggested_resources(profile)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -600,6 +612,19 @@ def health():
         "alphavantage": bool(ALPHA_VANTAGE_KEY),
     }
 
+
+@app.get("/api/roadmap/resources")
+async def roadmap_resources(user: User = Depends(get_current_user)):
+    db = get_db()
+    j_data = db.execute("SELECT profile, level FROM user_journey WHERE user_id = ?", (user.id,)).fetchone()
+    if not j_data:
+        return {"resources": []}
+        
+    profile = json.loads(j_data[0]) if j_data[0] else {}
+    level = j_data[1] or 1
+    
+    resources = get_suggested_resources(profile, level)
+    return {"resources": resources}
 
 if __name__ == "__main__":
     import uvicorn

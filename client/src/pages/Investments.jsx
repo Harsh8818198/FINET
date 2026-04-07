@@ -127,32 +127,41 @@ export default function Investments() {
             </div>
 
             {showAdd && (
-                <div className="modal-overlay" onClick={() => setShowAdd(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-title" style={{ fontSize: '1.2rem', marginBottom: 24 }}>Add Equity Holding</div>
-                        <div className="input-group" style={{ marginBottom: 16 }}>
-                            <label className="input-label">Title</label>
-                            <input className="input" placeholder="e.g. HDFC Nifty 50" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAdd(false)}>
+                    <div className="card anim-fade w-full max-w-md" style={{ background: 'var(--bg-card)', padding: '28px' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>Register Asset</h3>
+                            <button onClick={() => setShowAdd(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
                         </div>
-                        <div className="input-group" style={{ marginBottom: 16 }}>
-                            <label className="input-label">Classification</label>
-                            <select className="input" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-                                {['Index Fund', 'Mid Cap', 'Large Cap', 'Small Cap', 'ELSS', 'Direct Stock', 'REIT', 'Gold', 'ETF'].map(t => <option key={t}>{t}</option>)}
-                            </select>
-                        </div>
-                        <div className="grid-2" style={{ marginBottom: 24 }}>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                             <div className="input-group">
-                                <label className="input-label">Capital Deployed (₹)</label>
-                                <input className="input" type="number" value={form.invested} onChange={e => setForm(f => ({ ...f, invested: e.target.value }))} />
+                                <label className="input-label">Asset Name</label>
+                                <input className="input" placeholder="e.g. HDFC Nifty 50 Index Fund" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                             </div>
+
                             <div className="input-group">
-                                <label className="input-label">Current Valuation (₹)</label>
-                                <input className="input" type="number" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} />
+                                <label className="input-label">Classification</label>
+                                <select className="input" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={{ appearance: 'none' }}>
+                                    {['Index Fund', 'Mid Cap', 'Large Cap', 'Small Cap', 'ELSS', 'Direct Stock', 'REIT', 'Gold', 'ETF'].map(t => <option key={t}>{t}</option>)}
+                                </select>
                             </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={addPortfolio}>APPEND</button>
-                            <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>CANCEL</button>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="input-group">
+                                    <label className="input-label">Invested (₹)</label>
+                                    <input className="input" type="number" value={form.invested} onChange={e => setForm(f => ({ ...f, invested: e.target.value }))} />
+                                </div>
+                                <div className="input-group">
+                                    <label className="input-label">Valuation (₹)</label>
+                                    <input className="input" type="number" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                                <button className="btn btn-primary" style={{ flex: 1, padding: '12px' }} onClick={addPortfolio}>APPEND ASSET</button>
+                                <button className="btn btn-secondary" style={{ padding: '12px 24px' }} onClick={() => setShowAdd(false)}>CANCEL</button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { buildProfile } from '../utils/coachEngine'
 import { useJourney } from '../context/JourneyContext'
 import { FeatureInfoBadge } from '../components/FeatureTips'
-import { Sparkles, ArrowRight, CheckCircle2, Circle, Send, ChevronDown, RotateCcw, User } from 'lucide-react'
+import { Sparkles, ArrowRight, CheckCircle2, Circle, Send, ChevronDown, RotateCcw, User, BookOpen } from 'lucide-react'
 
 import api from '../utils/api'
 
@@ -76,11 +76,14 @@ export default function FinCoach() {
   const [input, setInput]         = useState('')
   const [typing, setTyping]       = useState(false)
   const [apiOnline, setApiOnline] = useState(false)
+  const [resources, setResources] = useState([])
   const chatEndRef = useRef(null)
   const { setProfile: saveToJourney, completeRoadmapStep, resetJourney, journey } = useJourney()
 
   useEffect(() => {
     api.get('/health').then(r => r.status === 200 && setApiOnline(true)).catch(() => {})
+    // Fetch personalized learning nodes
+    api.get('/roadmap/resources').then(r => setResources(r.data.resources)).catch(e => console.error('Resources failed', e))
   }, [])
 
   // Restore saved profile
@@ -194,10 +197,13 @@ export default function FinCoach() {
             {q.type === 'number' && (
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1, position: 'relative' }}>
+                  {(q.id === 'capital' || q.id === 'income') && (
+                    <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600, pointerEvents: 'none' }}>₹</span>
+                  )}
                   <input autoFocus type="number" className="input" placeholder={q.placeholder} value={currentVal}
                     onChange={e => setCurrentVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleNext()}
-                    style={{ fontSize: '1.05rem', padding: '14px 18px', height: 'auto' }} />
-                  <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{q.unit}</span>
+                    style={{ fontSize: '1.05rem', padding: `14px 18px 14px ${(q.id === 'capital' || q.id === 'income') ? '32px' : '18px'}`, height: 'auto' }} />
+                  <span style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{q.unit}</span>
                 </div>
                 <button className="btn btn-primary" onClick={handleNext} style={{ padding: '12px 22px' }}><ArrowRight size={18} /></button>
               </div>
@@ -259,7 +265,43 @@ export default function FinCoach() {
         <div>
           <div className="section-title" style={{ marginBottom: 14 }}>Action Roadmap</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* 1. The Dynamic Next Move Card */}
+            <div className="card" style={{ 
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1))', 
+              border: '1px solid rgba(99,102,241,0.3)', marginBottom: 16, padding: '20px' 
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accent-indigo)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sparkles size={14} color="#fff" />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--accent-indigo)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Next Intelligence Move</div>
+              </div>
+              <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>{journey.nextCognitiveStep || "Analyze your 'Spending Node' for potential SIP influx."}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>Based on your level {journey.level} status and recent market pulse headlines.</div>
+              <button className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.75rem' }}>Execute Prediction</button>
+            </div>
+
             {roadmap.map((s, i) => <RoadmapCard key={s.id} step={s} index={i} onToggle={toggleDone} />)}
+
+            {/* 2. Personalized Learning Resources */}
+            <div className="section-title" style={{ marginTop: 24, marginBottom: 14, fontSize: '0.7rem', opacity: 0.6 }}>Cognitive Resources</div>
+            {resources?.length > 0 ? resources.map((res, i) => (
+              <div key={i} className="card" style={{ 
+                background: 'var(--bg-deep)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, 
+                border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' 
+              }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {res.type === 'Course' ? <Send size={14} color="var(--accent-indigo)" /> : <BookOpen size={14} color="var(--text-muted)" />}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>{res.type} · +{res.xp} XP</div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>{res.title}</div>
+                </div>
+                <ArrowRight size={16} color="var(--text-muted)" />
+              </div>
+            )) : (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>Loading tailored resources...</div>
+            )}
           </div>
         </div>
 

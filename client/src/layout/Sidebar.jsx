@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Network, PieChart,
   Users, Newspaper, Users2,
-  TrendingUp, Landmark, Zap, Sparkles, LogOut, ChevronRight
+  TrendingUp, Landmark, Zap, Sparkles, LogOut, ChevronRight, FileText
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { useJourney } from '../context/JourneyContext'
@@ -15,8 +15,9 @@ const NAV_CORE = [
 ]
 
 const NAV_INTEL = [
-  { to: '/mentors',   label: 'Experts',      icon: Users },
   { to: '/news',      label: 'Intelligence', icon: Newspaper },
+  { to: '/report',    label: 'Intel Brief',  icon: FileText },
+  { to: '/mentors',   label: 'Experts',      icon: Users },
   { to: '/community', label: 'Hub',          icon: Users2 },
 ]
 

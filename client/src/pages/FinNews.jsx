@@ -33,18 +33,27 @@ function timeAgo(dateStr) {
 }
 
 function ArticleCard({ article }) {
+  const [showAnalysis, setShowAnalysis] = useState(false)
+  const [learnt, setLearnt]           = useState(false)
   const cpx = COMPLEXITY_COLOR[article.complexity] || COMPLEXITY_COLOR.Intermediate
+  const { awardXP } = useJourney()
+
+  const handleLearn = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!learnt) {
+      awardXP(article.ai_analysis ? 15 : 5) 
+      setLearnt(true)
+    }
+  }
+
   return (
-    <a href={article.url && article.url !== '#' ? article.url : undefined}
-      target="_blank" rel="noopener noreferrer"
-      style={{ textDecoration: 'none', display: 'block' }}>
-      <div className="card" style={{
-        background: 'var(--bg-deep)', padding: '20px 24px', cursor: 'pointer',
-        transition: 'all 0.2s',
-      }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none' }}
-      >
+    <div className="card" style={{
+      background: 'var(--bg-deep)', padding: 0, cursor: 'default',
+      transition: 'all 0.2s', overflow: 'hidden',
+      borderColor: showAnalysis ? 'var(--accent-indigo)' : 'var(--border)'
+    }}>
+      <div style={{ padding: '20px 24px' }}>
         {/* Meta row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
@@ -52,41 +61,69 @@ function ArticleCard({ article }) {
           </span>
           <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>·</span>
           <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{timeAgo(article.publishedAt)}</span>
-          {article.category && (
-            <>
-              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>·</span>
-              <span style={{ fontSize: '0.62rem', color: 'var(--accent-indigo)', fontWeight: 600 }}>{article.category}</span>
-            </>
-          )}
-          {article.sentiment && (
-            <span style={{ fontSize: '0.62rem', color: SENTIMENT_COLOR[article.sentiment] || 'var(--text-muted)', fontWeight: 600, marginLeft: 'auto' }}>
-              {article.sentiment.replace(/_/g, ' ')}
-            </span>
-          )}
-          <span style={{ marginLeft: article.sentiment ? 0 : 'auto', fontSize: '0.62rem', padding: '2px 8px', borderRadius: 20, background: cpx.bg, border: `1px solid ${cpx.border}`, color: cpx.text, fontWeight: 600 }}>
+          <span style={{ marginLeft: 'auto', fontSize: '0.62rem', padding: '2px 8px', borderRadius: 20, background: cpx.bg, border: `1px solid ${cpx.border}`, color: cpx.text, fontWeight: 600 }}>
             {article.complexity}
           </span>
         </div>
 
         {/* Title */}
-        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)', lineHeight: 1.45, marginBottom: 8 }}>
+        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)', lineHeight: 1.45, marginBottom: 12 }}>
           {article.title}
         </h3>
 
-        {/* Description */}
-        {article.description && (
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {article.description}
-          </p>
+        {/* AI Analysis Toggle */}
+        {article.ai_analysis && (
+          <button 
+            onClick={() => setShowAnalysis(!showAnalysis)}
+            style={{ 
+              width: '100%', padding: '8px 12px', borderRadius: 6, background: showAnalysis ? 'var(--accent-indigo)' : 'rgba(99,102,241,0.1)', 
+              border: '1px solid rgba(99,102,241,0.3)', color: showAnalysis ? '#fff' : 'var(--accent-indigo)',
+              fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12,
+              transition: 'all 0.2s'
+            }}
+          >
+            <Sparkles size={12} /> {showAnalysis ? 'Close Intelligence Brief' : 'View Cognitive Insight'}
+          </button>
         )}
 
-        {article.url && article.url !== '#' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 10, color: 'var(--accent-indigo)', fontSize: '0.75rem', fontWeight: 500 }}>
-            <ExternalLink size={12} /> Read article
+        {/* Intelligence Brief Content */}
+        {showAnalysis && article.ai_analysis && (
+          <div className="anim-slide" style={{ padding: '14px', background: 'rgba(99,102,241,0.04)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)', marginBottom: 14 }}>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: '0.6rem', color: 'var(--accent-indigo)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>What / Summary</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{article.ai_analysis.summary}</div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: '0.6rem', color: 'var(--accent-indigo)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Why / Context</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{article.ai_analysis.why}</div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: '0.6rem', color: 'var(--green)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Impact on YOU</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.5 }}>{article.ai_analysis.impact}</div>
+            </div>
+            <div style={{ paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              " {article.ai_analysis.learning} "
+            </div>
           </div>
         )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <a href={article.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <ExternalLink size={12} /> Source Link
+          </a>
+          <button 
+            onClick={handleLearn}
+            disabled={learnt}
+            style={{ 
+              background: learnt ? 'rgba(16,185,129,0.1)' : 'transparent', border: `1px solid ${learnt ? 'var(--green)' : 'rgba(255,255,255,0.1)'}`,
+              padding: '4px 10px', borderRadius: 4, fontSize: '0.68rem', color: learnt ? 'var(--green)' : 'var(--text-muted)',
+              cursor: learnt ? 'default' : 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5
+            }}>
+            {learnt ? <CheckCircle2 size={12} /> : null} {learnt ? 'Topic Mastered' : 'Mark as Learnt (+15 XP)'}
+          </button>
+        </div>
       </div>
-    </a>
+    </div>
   )
 }
 

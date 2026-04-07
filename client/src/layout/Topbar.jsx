@@ -29,15 +29,25 @@ export default function Topbar() {
       </div>
 
       {/* 2. System Status & Profile */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-        {/* Income Pulse */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}>
-          <Wallet size={16} color="var(--text-muted)" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        {/* Income Pulse / Digital Vault */}
+        <div style={{ 
+          display: 'flex', alignItems: 'center', gap: 10, 
+          padding: '4px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', 
+          border: '1px solid rgba(255,255,255,0.06)', transition: 'all 0.2s'
+        }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}
+        >
+          <Wallet size={14} color="var(--text-muted)" />
           {editing ? (
             <input
               autoFocus
               className="input"
-              style={{ width: 100, height: 28, fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
+              style={{ 
+                width: 80, background: 'transparent', border: 'none', 
+                height: 20, padding: 0, textAlign: 'center', boxShadow: 'none'
+              }}
               type="number"
               value={draft}
               onChange={e => setDraft(e.target.value)}
@@ -45,26 +55,40 @@ export default function Topbar() {
               onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }}
             />
           ) : (
-            <span onClick={handleEdit} style={{ fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
-              <span style={{ color: 'var(--text-muted)', marginRight: 2 }}>₹</span>
+            <span onClick={handleEdit} style={{ 
+              fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono)',
+              color: 'var(--text-primary)', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center'
+            }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginRight: 2 }}>₹</span>
               {income.toLocaleString()}
             </span>
           )}
         </div>
 
-        <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-
-        {/* Global Notifications/Alerts */}
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--accent-indigo)' }}>
-            <Sparkles size={14} fill="currentColor" />
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{journey.xp} XP</span>
+        {/* Global Capsules */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ 
+            display: 'flex', gap: 6, alignItems: 'center', padding: '4px 10px', 
+            borderRadius: 20, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+            color: 'var(--accent-indigo)', fontSize: '0.7rem', fontWeight: 800, fontFamily: 'var(--font-mono)'
+          }}>
+            <Sparkles size={12} fill="currentColor" />
+            {journey.xp} XP
           </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--yellow)' }}>
-            <Flame size={14} fill="currentColor" />
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{journey.streak}</span>
+          <div style={{ 
+            display: 'flex', gap: 6, alignItems: 'center', padding: '4px 10px', 
+            borderRadius: 20, background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.2)',
+            color: 'var(--yellow)', fontSize: '0.7rem', fontWeight: 800, fontFamily: 'var(--font-mono)'
+          }}>
+            <Flame size={12} fill="currentColor" />
+            {journey.streak}
           </div>
-          <Bell size={16} className="text-muted" style={{ cursor: 'pointer' }} />
+          <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', background: 'rgba(255,255,255,0.02)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+          >
+            <Bell size={14} className="text-muted" />
+          </div>
         </div>
 
         {/* Profile Token */}

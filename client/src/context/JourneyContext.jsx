@@ -30,6 +30,7 @@ const DEFAULT_JOURNEY = {
 
   // Coach
   coachMinimized: false,
+  cognitionHistory: [],    // list of IDs/titles of mastered topics
 }
 
 const XP_REWARDS = {
@@ -86,15 +87,29 @@ export function JourneyProvider({ children }) {
   }, [journey, user])
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  const gainXP = useCallback((action) => {
-    const reward = XP_REWARDS[action] || 0
+  const awardXP = useCallback((amountOrAction) => {
+    let reward = 0
+    if (typeof amountOrAction === 'number') {
+      reward = amountOrAction
+    } else {
+      reward = XP_REWARDS[amountOrAction] || 0
+    }
+    
     if (!reward) return
     setJourney(prev => {
-      const newXP = prev.xp + reward
+      const newXP = (prev.xp || 0) + reward
       const newLevel = Math.floor(newXP / 100) + 1
       return { ...prev, xp: newXP, level: newLevel }
     })
   }, [])
+
+  const markTopicMastered = useCallback((topicId) => {
+    setJourney(prev => {
+      if (prev.cognitionHistory.includes(topicId)) return prev
+      return { ...prev, cognitionHistory: [...prev.cognitionHistory, topicId] }
+    })
+    awardXP(15) // Standard bonus for mastery
+  }, [awardXP])
 
   const trackPage = useCallback((path) => {
     setJourney(prev => {
@@ -102,29 +117,29 @@ export function JourneyProvider({ children }) {
       const newPages = [...prev.visitedPages, path]
       return { ...prev, visitedPages: newPages }
     })
-    gainXP('page_visit')
-  }, [gainXP])
+    awardXP('page_visit')
+  }, [awardXP])
 
   const trackAction = useCallback((action) => {
     setJourney(prev => {
       if (prev.completedActions.includes(action)) return prev
       return { ...prev, completedActions: [...prev.completedActions, action] }
     })
-    gainXP(action)
-  }, [gainXP])
+    awardXP(action)
+  }, [awardXP])
 
   const setProfile = useCallback((profile) => {
     setJourney(prev => ({ ...prev, profile }))
-    gainXP('completed_quiz')
-  }, [gainXP])
+    awardXP('completed_quiz')
+  }, [awardXP])
 
   const completeRoadmapStep = useCallback((stepId) => {
     setJourney(prev => {
       if (prev.roadmapDone.includes(stepId)) return prev
       return { ...prev, roadmapDone: [...prev.roadmapDone, stepId] }
     })
-    gainXP('roadmap_step')
-  }, [gainXP])
+    awardXP('roadmap_step')
+  }, [awardXP])
 
   const markOnboardingSeen = useCallback(() => {
     setJourney(prev => ({ ...prev, seenOnboarding: true }))
@@ -151,7 +166,8 @@ export function JourneyProvider({ children }) {
 
   const value = {
     journey,
-    gainXP,
+    awardXP,
+    markTopicMastered,
     trackPage,
     trackAction,
     setProfile,
