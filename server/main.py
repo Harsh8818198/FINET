@@ -57,7 +57,11 @@ Base.metadata.create_all(bind=engine)
 # ─── Simple In-App Migration (Auto-add missing columns) ────────────────────────
 def run_migrations():
     import sqlite3
-    conn = sqlite3.connect("./finet.db")
+    db_path = "./finet.db"
+    if os.environ.get("VERCEL"):
+        db_path = "/tmp/finet.db"
+    
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     # Check if 'xp' exists in 'users' table
