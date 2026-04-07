@@ -127,18 +127,27 @@ export default function FinCoach() {
     setInput('')
     setTyping(true)
     try {
+      let replied = false
       if (apiOnline) {
-        const res = await api.post('/chat', {
-          message: text, 
-          profile: profile || {}, 
-          history: msgs.slice(-8) 
-        })
-        setMsgs(m => [...m, { role: 'coach', content: res.data.reply }])
-      } else {
+        try {
+          const res = await api.post('/chat', {
+            message: text, 
+            profile: profile || {}, 
+            history: msgs.slice(-8) 
+          })
+          if (res.data?.reply) {
+            setMsgs(m => [...m, { role: 'coach', content: res.data.reply }])
+            replied = true
+          }
+        } catch (apiErr) {
+          console.warn('[Coach] API call failed, using local engine', apiErr)
+        }
+      }
+      if (!replied) {
         const { getCoachResponse } = await import('../utils/coachEngine')
         setMsgs(m => [...m, { role: 'coach', content: getCoachResponse(text, profile) }])
       }
-    } catch { setMsgs(m => [...m, { role: 'coach', content: 'Network error. Make sure the Python API server is running on port 8000.' }]) }
+    } catch { setMsgs(m => [...m, { role: 'coach', content: 'Something went wrong. Please try again.' }]) }
     finally { setTyping(false) }
   }
 

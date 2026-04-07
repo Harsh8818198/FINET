@@ -13,6 +13,17 @@ class User(Base):
     full_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Journey / Gamification fields
+    xp = Column(Integer, default=0)
+    level = Column(Integer, default=1)
+    profile_json = Column(JSON, nullable=True) # Stores the quiz results object
+    seen_onboarding = Column(Integer, default=0) # 0=False, 1=True (SQLite compat)
+    visited_pages_json = Column(JSON, default=list)
+    completed_actions_json = Column(JSON, default=list)
+    roadmap_done_json = Column(JSON, default=list)
+    last_visit = Column(String, nullable=True)
+    streak = Column(Integer, default=0)
+
     # Relationships
     nodes = relationship("BudgetNode", back_populates="owner", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="owner", cascade="all, delete-orphan")

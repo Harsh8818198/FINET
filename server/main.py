@@ -23,13 +23,63 @@ from sqlalchemy.orm import sessionmaker, Session
 from auth import create_access_token, verify_password, get_password_hash, decode_access_token
 from models import Base, User, BudgetNode, Transaction, PortfolioItem, Loan
 
-load_dotenv()
+load_dotenv(override=True)
+
+# ─── API Configuration ────────────────────────────────────────────────────────
+GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "").strip().strip('"').strip("'")
+NEWS_API_KEY      = os.getenv("NEWS_API_KEY", "")
+ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "")
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    print(f"[System] Gemini active (Key ends in: ...{GEMINI_API_KEY[-4:]})")
+else:
+    print("[System] CRITICAL: GEMINI_API_KEY not found in .env")
+
 
 # ─── Database ──────────────────────────────────────────────────────────────────
 SQLALCHEMY_DATABASE_URL = "sqlite:///./finet.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
+
+# ─── Simple In-App Migration (Auto-add missing columns) ────────────────────────
+def run_migrations():
+    import sqlite3
+    conn = sqlite3.connect("./finet.db")
+    cursor = conn.cursor()
+    
+    # Check if 'xp' exists in 'users' table
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [row[1] for row in cursor.fetchall()]
+    
+    if "xp" not in columns:
+        print("[System] Outdated database detected. Applying auto-migration...")
+        try:
+            # Add all journey-related columns one by one
+            # Note: SQLite ALTER TABLE only adds one column at a time
+            alter_cmds = [
+                "ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1",
+                "ALTER TABLE users ADD COLUMN profile_json JSON",
+                "ALTER TABLE users ADD COLUMN seen_onboarding INTEGER DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN visited_pages_json JSON DEFAULT '[]'",
+                "ALTER TABLE users ADD COLUMN completed_actions_json JSON DEFAULT '[]'",
+                "ALTER TABLE users ADD COLUMN roadmap_done_json JSON DEFAULT '[]'",
+                "ALTER TABLE users ADD COLUMN last_visit TEXT",
+                "ALTER TABLE users ADD COLUMN streak INTEGER DEFAULT 0"
+            ]
+            for cmd in alter_cmds:
+                try: cursor.execute(cmd)
+                except: pass # Column might already exist
+            conn.commit()
+            print("[System] Database schema successfully synchronized.")
+        except Exception as e:
+            print(f"[System] Migration warning: {e}")
+    conn.close()
+
+run_migrations()
+
 
 def get_db():
     db = SessionLocal()
@@ -59,15 +109,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ─── API Keys (from .env) ─────────────────────────────────────────────────────
-NEWS_API_KEY      = os.getenv("NEWS_API_KEY", "")
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "")
-GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
-
-# Configure Gemini
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 # ─── Simple in-memory cache ───────────────────────────────────────────────────
 _cache = {}
@@ -284,7 +325,7 @@ Rules:
 User profile context will be provided. Adapt your tone and depth accordingly."""
 
 @app.post("/api/chat")
-def chat(req: ChatRequest, current_user: User = Depends(get_current_user)):
+def chat(req: ChatRequest):
     if not GEMINI_API_KEY:
         from coach_fallback import get_fallback_response
         return {"reply": get_fallback_response(req.message, req.profile)}
@@ -292,9 +333,13 @@ def chat(req: ChatRequest, current_user: User = Depends(get_current_user)):
     try:
         # Improved model naming and parameter handling
         model = genai.GenerativeModel(
-            model_name="models/gemini-2.0-flash", 
+            model_name="models/gemini-2.5-flash", 
             system_instruction=SYSTEM_PROMPT,
         )
+        
+        # Log which key is being used for this specific request
+        # print(f"[System] AI Call using key ending in: ...{GEMINI_API_KEY[-4:] if GEMINI_API_KEY else 'NONE'}")
+
 
         profile_ctx = ""
         if req.profile:
@@ -318,8 +363,9 @@ def chat(req: ChatRequest, current_user: User = Depends(get_current_user)):
             return {"reply": response.text}
         except Exception as api_err:
             print(f"[Gemini API Call] error: {api_err}")
-            # Fallback if specific model fails
-            return {"reply": "I'm having trouble connecting to my brain right now. Please try again or check your API key."}
+            # Robust fallback to local engine if Gemini fails
+            from coach_fallback import get_fallback_response
+            return {"reply": get_fallback_response(req.message, req.profile)}
 
     except Exception as e:
         print(f"[Gemini Structure] error: {e}")
@@ -353,7 +399,12 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user": {"id": new_user.id, "phone": new_user.phone, "full_name": new_user.full_name}
+        "user": {
+            "id": new_user.id, 
+            "phone": new_user.phone, 
+            "full_name": new_user.full_name,
+            "journey": user_to_journey(new_user)
+        }
     }
 
 @app.post("/api/auth/login")
@@ -366,7 +417,26 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user": {"id": user.id, "phone": user.phone, "full_name": user.full_name}
+        "user": {
+            "id": user.id, 
+            "phone": user.phone, 
+            "full_name": user.full_name,
+            "journey": user_to_journey(user)
+        }
+    }
+
+# Helper to map User database fields to the frontend Journey structure
+def user_to_journey(user: User):
+    return {
+        "profile": user.profile_json,
+        "xp": user.xp,
+        "level": user.level,
+        "seenOnboarding": bool(user.seen_onboarding),
+        "visitedPages": user.visited_pages_json or [],
+        "completedActions": user.completed_actions_json or [],
+        "roadmapDone": user.roadmap_done_json or [],
+        "lastVisit": user.last_visit,
+        "streak": user.streak,
     }
 
 @app.get("/api/auth/me")
@@ -375,11 +445,31 @@ def get_me(current_user: User = Depends(get_current_user)):
         "id": current_user.id, 
         "phone": current_user.phone, 
         "full_name": current_user.full_name,
-        "email": current_user.email
+        "email": current_user.email,
+        "journey": user_to_journey(current_user)
     }
 
-
 # ─── DATA ENDPOINTS ─────────────────────────────────────────────────────────────
+
+@app.get("/api/user/journey")
+def get_user_journey(current_user: User = Depends(get_current_user)):
+    return user_to_journey(current_user)
+
+@app.post("/api/user/journey")
+def save_user_journey(req: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Update the user fields based on the incoming journey object
+    if "xp" in req: current_user.xp = req["xp"]
+    if "level" in req: current_user.level = req["level"]
+    if "profile" in req: current_user.profile_json = req["profile"]
+    if "seenOnboarding" in req: current_user.seen_onboarding = 1 if req["seenOnboarding"] else 0
+    if "visitedPages" in req: current_user.visited_pages_json = req["visitedPages"]
+    if "completedActions" in req: current_user.completed_actions_json = req["completedActions"]
+    if "roadmapDone" in req: current_user.roadmap_done_json = req["roadmapDone"]
+    if "lastVisit" in req: current_user.last_visit = req["lastVisit"]
+    if "streak" in req: current_user.streak = req["streak"]
+    
+    db.commit()
+    return {"status": "ok"}
 
 @app.get("/api/user/data")
 def get_user_data(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -501,7 +591,7 @@ def get_market_pulse():
     return {"data": data}
 
 
-@app.get("/health")
+@app.get("/api/health")
 def health():
     return {
         "status": "ok",

@@ -18,6 +18,7 @@ const FinNews     = lazy(() => import('./pages/FinNews'))
 const Community   = lazy(() => import('./pages/Community'))
 const FinCoach    = lazy(() => import('./pages/FinCoach'))
 const Markets     = lazy(() => import('./pages/Markets'))
+const Profile     = lazy(() => import('./pages/Profile'))
 
 // ─── Global Error Boundary ──────────────────────────────────────────────────
 class GlobalErrorBoundary extends React.Component {
@@ -186,6 +187,7 @@ function AppController() {
                       <Route path="/community"  element={<Community />} />
                       <Route path="/coach"      element={<FinCoach />} />
                       <Route path="/markets"    element={<Markets />} />
+                      <Route path="/profile"    element={<Profile />} />
                       <Route path="*"           element={<Navigate to="/" replace />} />
                     </Routes>
                   </Suspense>

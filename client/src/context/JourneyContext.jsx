@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { useAuth } from '../hooks/useAuth'
+import api from '../utils/api'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Journey Context — tracks every meaningful action a user takes in Finet
@@ -50,12 +52,38 @@ function ls(key, fallback) {
 }
 
 export function JourneyProvider({ children }) {
+  const { user } = useAuth()
   const [journey, setJourney] = useState(() => ls('finet:journey', DEFAULT_JOURNEY))
+  const syncTimeoutRef = useRef(null)
 
-  // Persist on every change
+  // 1. Sync FROM server when user logs in/changes
   useEffect(() => {
+    // Merge server data with defaults to ensure no missing properties
+    if (user?.journey) {
+      setJourney(prev => ({ 
+        ...DEFAULT_JOURNEY, 
+        ...user.journey,
+        // Only keep the local profile if the server's is truly empty
+        profile: user.journey.profile || prev.profile 
+      }))
+    }
+  }, [user])
+
+  // 2. Sync TO server when journey changes (Debounced)
+  useEffect(() => {
+    // Always persist to localStorage for instant local feedback/guest mode
     localStorage.setItem('finet:journey', JSON.stringify(journey))
-  }, [journey])
+
+    if (user) {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
+      syncTimeoutRef.current = setTimeout(() => {
+        api.post('/user/journey', journey)
+          .catch(err => console.error('[JourneySync] failed', err))
+      }, 2000) // 2 sec debounce
+    }
+    
+    return () => { if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current) }
+  }, [journey, user])
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const gainXP = useCallback((action) => {
