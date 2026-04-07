@@ -40,6 +40,11 @@ else:
 
 # ─── Database ──────────────────────────────────────────────────────────────────
 _DB_URL = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL") or "sqlite:///./finet.db"
+
+# Vercel-specific: If SQLite and we are on Vercel, move DB to /tmp
+if "sqlite" in _DB_URL and os.environ.get("VERCEL"):
+    _DB_URL = "sqlite:////tmp/finet.db"
+
 # Vercel Postgres uses 'postgres://' which SQLAlchemy needs as 'postgresql://'
 if _DB_URL.startswith("postgres://"):
     _DB_URL = _DB_URL.replace("postgres://", "postgresql://", 1)
